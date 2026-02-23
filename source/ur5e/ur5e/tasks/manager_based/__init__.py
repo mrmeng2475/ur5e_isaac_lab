@@ -4,3 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import gymnasium as gym  # noqa: F401
+import os
+from .assets import *  # noqa
+IROBOT_ROOT_DIR = os.path.dirname(os.path.abspath(__file__))

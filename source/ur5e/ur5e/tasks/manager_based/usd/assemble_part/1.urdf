@@ -1,0 +1,25 @@
+<?xml version="1.0" ?>
+<robot name="assemble_part_1">
+  <!-- Define a simple part that references the STL file -->
+  
+  <link name="base_link">
+    <!-- Visual representation -->
+    <visual>
+      <geometry>
+        <mesh filename="./1.stl" scale="1.0 1.0 1.0"/>
+      </geometry>
+      <material name="silver">
+        <color rgba="0.75 0.75 0.75 1.0"/>
+      </material>
+      <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+    </visual>
+
+    <!-- Inertial properties -->
+    <inertial>
+      <mass value="1.0"/>
+      <inertia ixx="0.1" ixy="0.0" ixz="0.0" iyy="0.1" iyz="0.0" izz="0.1"/>
+      <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+    </inertial>
+  </link>
+
+</robot>
