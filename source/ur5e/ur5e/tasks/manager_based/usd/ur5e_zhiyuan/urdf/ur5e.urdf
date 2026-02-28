@@ -57,7 +57,7 @@
     <child link="upper_arm_link"/>
     <origin rpy="0.0 1.57079632679 0.0" xyz="0.0 0.138 0.0"/>
     <axis xyz="0 1 0"/>
-    <limit effort="150.0" lower="-6.28318530718" upper="6.28318530718" velocity="3.14"/>
+    <limit effort="150.0" lower="-3.14" upper="3.14" velocity="3.14"/>
     <dynamics damping="0.0" friction="0.0"/>
   </joint>
   <link name="upper_arm_link">
@@ -85,7 +85,7 @@
     <child link="forearm_link"/>
     <origin rpy="0.0 0.0 0.0" xyz="0.0 -0.131 0.425"/>
     <axis xyz="0 1 0"/>
-    <limit effort="150.0" lower="-3.14159265359" upper="3.14159265359" velocity="3.14"/>
+    <limit effort="150.0" lower="-2.0" upper="2.0" velocity="3.14"/>
     <dynamics damping="0.0" friction="0.0"/>
   </joint>
   <link name="forearm_link">
@@ -113,7 +113,7 @@
     <child link="wrist_1_link"/>
     <origin rpy="0.0 1.57079632679 0.0" xyz="0.0 0.0 0.392"/>
     <axis xyz="0 1 0"/>
-    <limit effort="28.0" lower="-6.28318530718" upper="6.28318530718" velocity="6.28"/>
+    <limit effort="28.0" lower="-3.14159" upper="3.14159" velocity="6.28"/>
     <dynamics damping="0.0" friction="0.0"/>
   </joint>
   <link name="wrist_1_link">
@@ -141,7 +141,7 @@
     <child link="wrist_2_link"/>
     <origin rpy="0.0 0.0 0.0" xyz="0.0 0.127 0.0"/>
     <axis xyz="0 0 1"/>
-    <limit effort="28.0" lower="-6.28318530718" upper="6.28318530718" velocity="6.28"/>
+    <limit effort="28.0" lower="-2.0" upper="2.0" velocity="6.28"/>
     <dynamics damping="0.0" friction="0.0"/>
   </joint>
   <link name="wrist_2_link">
@@ -169,7 +169,7 @@
     <child link="wrist_3_link"/>
     <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.1"/>
     <axis xyz="0 1 0"/>
-    <limit effort="28.0" lower="-6.28318530718" upper="6.28318530718" velocity="6.28"/>
+    <limit effort="28.0" lower="-3.14159" upper="0" velocity="6.28"/>
     <dynamics damping="0.0" friction="0.0"/>
   </joint>
   <link name="wrist_3_link">
@@ -195,7 +195,7 @@
   <joint name="catch_joint" type="fixed">
     <parent link="wrist_3_link"/>
     <child link="catch_link"/>
-    <origin rpy="-1.5708 -1.5708 0.0" xyz="-0.035 0.28 0.05"/>
+    <origin rpy="0.0 0.0 0.0" xyz="-0.035 0.25 0.05"/>
   </joint>
   <link
     name="catch_link">

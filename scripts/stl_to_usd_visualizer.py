@@ -19,6 +19,9 @@ parser.add_argument("--stl_path", type=str, required=True, help="Path to the STL
 parser.add_argument(
     "--output_dir", type=str, default=None, help="Output directory for USD file. If not specified, uses the same directory as STL."
 )
+parser.add_argument(
+    "--visualize", type=bool, default=False, help="Whether to visualize the converted USD file in Isaac Sim. Default: True."
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -56,10 +59,10 @@ def convert_stl_to_usd(stl_path: str, output_path: str) -> bool:
         root_prim = UsdGeom.Xform.Define(stage, "/Root")
         stage.SetDefaultPrim(root_prim.GetPrim())
 
-        # 👉 核心新增 1：把根节点注册为刚体，并永久写入 0.5kg 的质量
+        # 👉 核心新增 1：把根节点注册为刚体，并永久写入 0.1kg 的质量
         UsdPhysics.RigidBodyAPI.Apply(root_prim.GetPrim())
         mass_api = UsdPhysics.MassAPI.Apply(root_prim.GetPrim())
-        mass_api.CreateMassAttr().Set(0.5)
+        mass_api.CreateMassAttr().Set(0.1)
 
         # Create a mesh prim and import the STL
         mesh_prim_path = "/Root/Mesh"
@@ -170,6 +173,13 @@ def main():
 
     # Convert STL to USD
     if not convert_stl_to_usd(stl_path, usd_path):
+        simulation_app.close()
+        return
+
+    # Check if visualization is enabled
+    if not args_cli.visualize:
+        print(f"\n✓ Conversion completed. Visualization disabled.")
+        print(f"  USD file saved at: {usd_path}")
         simulation_app.close()
         return
 

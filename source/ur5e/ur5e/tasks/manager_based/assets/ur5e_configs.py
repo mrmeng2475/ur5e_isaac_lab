@@ -3,14 +3,47 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from pathlib import Path
 
+UR5E_JOINT_LIMITS = {
+    # 机械臂 (举例：限制大臂只能在一个安全的小范围内活动)
+    "shoulder_pan_joint": [-1.57, 1.57],
+    "shoulder_lift_joint": [-2.0, -1.0], # 这是一个典型的不对称范围！
+    "elbow_joint": [1.0, 2.0],
+    "wrist_1_joint": [-1.57, 1.57],
+    "wrist_2_joint": [-1.57, 1.57],
+    "wrist_3_joint": [-3.14, 3.14],
+    
+    # 灵巧手 (举例：限制在 0 到 1.5 弧度之间开合)
+    "l_f_joint_1": [0.0, 1.5],
+    "l_f_joint1_2": [0.0, 1.5],
+    "l_f_joint1_3": [0.0, 1.5],
+    "l_f_joint1_4": [0.0, 1.5],
+    "l_f_joint2_1": [0.0, 1.5],
+    "l_f_joint2_2": [0.0, 1.5],
+    "l_f_joint2_3": [0.0, 1.5],
+    "l_f_joint3_1": [0.0, 1.5],
+    "l_f_joint3_2": [0.0, 1.5],
+    "l_f_joint3_3": [0.0, 1.5],
+}
+
+ur5e_init_pos = {}
+UR5E_ACTION_SCALES = {}
+
+for joint_name, limits in UR5E_JOINT_LIMITS.items():
+    min_val, max_val = limits
+    # 中心点：(max + min) / 2
+    ur5e_init_pos[joint_name] = (max_val + min_val) / 2.0
+    # 半跨度：(max - min) / 2
+    UR5E_ACTION_SCALES[joint_name] = (max_val - min_val) / 2.0
+
 # Define UR5E_ROOT_DIR as the root directory of the ur5e package
 UR5E_ROOT_DIR = str(Path(__file__).parent.parent)
 # 定义您的ur5e配置
 UR5E_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{UR5E_ROOT_DIR}/usd/ur5e_zhiyuan/urdf/ur5e/ur5e.usd",
+        activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
+            disable_gravity=True,
             max_depenetration_velocity=5.0,
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
@@ -20,13 +53,14 @@ UR5E_CFG = ArticulationCfg(
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
+        pos=(0.0, 0.0, 0.8),
         joint_pos={
             "shoulder_pan_joint": 0.0,
-            "shoulder_lift_joint": 0.0,
-            "elbow_joint": 0.0,
+            "shoulder_lift_joint": -1.5708,
+            "elbow_joint": 1.5708,
             "wrist_1_joint": 0.0,
             "wrist_2_joint": 0.0,
-            "wrist_3_joint": 0.0,
+            "wrist_3_joint": -1.5708,
 
             "l_f_joint_1": 0.0,
             "l_f_joint1_2": 0.0,
@@ -61,15 +95,15 @@ UR5E_CFG = ArticulationCfg(
                 "wrist_3_joint": 2.61,
             },
             effort_limit_sim={
-                "shoulder_pan_joint": 40.0,
-                "shoulder_lift_joint": 27.0,
-                "elbow_joint": 7.0,
-                "wrist_1_joint": 40.0,
-                "wrist_2_joint": 27.0,
-                "wrist_3_joint": 7.0,
+                "shoulder_pan_joint": 200.0,
+                "shoulder_lift_joint": 200.0,
+                "elbow_joint": 200.0,
+                "wrist_1_joint": 80.0,
+                "wrist_2_joint": 80.0,
+                "wrist_3_joint": 40.0,
             },
-            stiffness=80.0,
-            damping=4.0,
+            stiffness=50.0,
+            damping=5.0,
         ),
         "dexhand": ImplicitActuatorCfg(
             joint_names_expr=[
@@ -85,9 +119,9 @@ UR5E_CFG = ArticulationCfg(
                 "l_f_joint3_3",
             ],
             velocity_limit_sim=0.2,
-            effort_limit_sim=5.0,
-            stiffness=80,
-            damping=4,
+            effort_limit_sim=5,
+            stiffness=40,
+            damping=3,
         ),
     },
     soft_joint_pos_limit_factor=1.0,
