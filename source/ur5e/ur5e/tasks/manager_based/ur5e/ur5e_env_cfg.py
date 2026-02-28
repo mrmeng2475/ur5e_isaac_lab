@@ -160,7 +160,7 @@ class RewardsCfg:
     fine_reach_part_2_pos = RewTerm(
         func=mdp.ee_to_part2_fine_pos_reward,  # 调用刚才写的阶跃函数
         weight=50.0,   # 权重给高一点！只要待在这 1cm 的球体里，每步都拿 50 分
-        params={"threshold": 0.01}  # 0.01 米 = 1 厘米
+        params={"threshold": 0.015}  # 0.01 米 = 1 厘米
     )
 
     # 👉 2. 独立的姿态对齐奖励
@@ -172,7 +172,7 @@ class RewardsCfg:
 
     continuous_lift = RewTerm(
         func=mdp.part2_continuous_lift_with_grasp_reward, # 👉 使用带抓取约束的新函数
-        weight=1000.0,  
+        weight=100.0,  
         params={
             "rest_height": 0.93,       # 根据之前的计算，静止时的绝对高度
             "dist_threshold": 0.01     # 👉 必须保持在 1 厘米内才算抓紧

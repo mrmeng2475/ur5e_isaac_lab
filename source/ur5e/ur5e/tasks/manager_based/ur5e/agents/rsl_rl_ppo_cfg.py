@@ -11,7 +11,7 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, R
 @configclass
 class PPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 16
-    max_iterations = 3000
+    max_iterations = 4000
     save_interval = 50
     experiment_name = "cartpole_direct"
     policy = RslRlPpoActorCriticCfg(
