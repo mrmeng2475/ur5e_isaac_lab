@@ -51,6 +51,7 @@ UR5E_CFG = ArticulationCfg(
             solver_position_iteration_count=8,
             solver_velocity_iteration_count=0,
         ),
+
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.8),
@@ -118,9 +119,9 @@ UR5E_CFG = ArticulationCfg(
                 "l_f_joint3_2",
                 "l_f_joint3_3",
             ],
-            velocity_limit_sim=0.2,
-            effort_limit_sim=5,
-            stiffness=40,
+            velocity_limit_sim=0.8,
+            effort_limit_sim=10,
+            stiffness=30,
             damping=3,
         ),
     },

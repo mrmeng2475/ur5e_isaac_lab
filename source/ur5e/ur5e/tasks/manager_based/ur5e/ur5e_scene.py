@@ -49,7 +49,7 @@ class Ur5eSceneCfg(InteractiveSceneCfg):
     assemble_part_2 = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/AssemblePart_2",
         spawn=sim_utils.UsdFileCfg( 
-            usd_path=os.path.join(CURRENT_DIR, "../usd/assemble_part/2.usd"), 
+            usd_path=os.path.join(CURRENT_DIR, "../usd/assemble_part/_2.usd"), 
             scale=(0.001, 0.001, 0.001),  
             collision_props=sim_utils.CollisionPropertiesCfg(),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),

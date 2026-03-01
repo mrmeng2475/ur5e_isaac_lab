@@ -10,7 +10,7 @@ python scripts/rsl_rl/train.py --task Template-Ur5e-v0  --num_envs 16
 # 训练
 python scripts/rsl_rl/train.py --task Template-Ur5e-v0  --num_envs 4096 --headless
 # 
-python scripts/rsl_rl/play.py --task Template-Ur5e-v0 --num_envs 32  --checkpoint "model_50.pt"
+python scripts/rsl_rl/play.py --task Template-Ur5e-v0 --num_envs 32  --load_run 2026-02-28_22-12-07 --checkpoint model_3999.pt
 
 # 有效果
 

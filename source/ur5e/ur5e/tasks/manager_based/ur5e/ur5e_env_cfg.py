@@ -20,6 +20,7 @@ from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer import OffsetCfg 
 from isaaclab.markers.config import FRAME_MARKER_CFG     
+from isaaclab.sim import SimulationCfg
 
 
 from . import mdp
@@ -160,7 +161,7 @@ class RewardsCfg:
     fine_reach_part_2_pos = RewTerm(
         func=mdp.ee_to_part2_fine_pos_reward,  # 调用刚才写的阶跃函数
         weight=50.0,   # 权重给高一点！只要待在这 1cm 的球体里，每步都拿 50 分
-        params={"threshold": 0.01}  # 0.01 米 = 1 厘米
+        params={"threshold": 0.015}  # 0.01 米 = 1 厘米
     )
 
     # 👉 2. 独立的姿态对齐奖励
@@ -175,7 +176,7 @@ class RewardsCfg:
         weight=1000.0,  
         params={
             "rest_height": 0.93,       # 根据之前的计算，静止时的绝对高度
-            "dist_threshold": 0.01     # 👉 必须保持在 1 厘米内才算抓紧
+            "dist_threshold": 0.025     # 👉 必须保持在 1 厘米内才算抓紧
         }
     )
 
@@ -282,6 +283,17 @@ class Ur5eEnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
+
+    sim: SimulationCfg = SimulationCfg(
+        dt=1 / 120,
+        physics_material=sim_utils.RigidBodyMaterialCfg(
+            static_friction=20.0,       # 极高的静摩擦
+            dynamic_friction=15.5,      
+            restitution=0.0,           # 毫无弹性
+            friction_combine_mode="max", 
+            restitution_combine_mode="min"
+        )
+    )
 
     # Post initialization
     def __post_init__(self) -> None:
