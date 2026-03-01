@@ -136,7 +136,7 @@ def part2_continuous_lift_with_grasp_reward(env: ManagerBasedRLEnv, rest_height:
     part2_z_w = parts_tf.data.target_pos_w[:, 1, 2]
     
     # 计算抬起高度（加入 1cm 的防抖动缓冲）
-    lift_diff = part2_z_w - (rest_height + 0.01)
+    lift_diff = part2_z_w - (rest_height + 0.001)
     
     # 限制下限为 0，没举起来就不给分
     actual_lift = torch.clamp(lift_diff, min=0.0)

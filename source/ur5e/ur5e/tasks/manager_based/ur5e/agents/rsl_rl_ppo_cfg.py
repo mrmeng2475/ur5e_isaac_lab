@@ -11,7 +11,7 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, R
 @configclass
 class PPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 16
-    max_iterations = 3000
+    max_iterations = 4000
     save_interval = 50
     experiment_name = "cartpole_direct"
     policy = RslRlPpoActorCriticCfg(
@@ -27,8 +27,8 @@ class PPORunnerCfg(RslRlOnPolicyRunnerCfg):
         use_clipped_value_loss=True,
         clip_param=0.2,
         entropy_coef=0.005,
-        num_learning_epochs=10,
-        num_mini_batches=64,
+        num_learning_epochs=5,
+        num_mini_batches=128,
         learning_rate=1.0e-3,
         schedule="adaptive",
         gamma=0.99,
