@@ -120,7 +120,7 @@ UR5E_CFG = ArticulationCfg(
                 "l_f_joint3_3",
             ],
             velocity_limit_sim=0.8,
-            effort_limit_sim=10,
+            effort_limit_sim=20,
             stiffness=30,
             damping=3,
         ),

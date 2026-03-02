@@ -287,9 +287,9 @@ class Ur5eEnvCfg(ManagerBasedRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
         physics_material=sim_utils.RigidBodyMaterialCfg(
-            static_friction=20.0,       # 极高的静摩擦
-            dynamic_friction=15.5,      
-            restitution=0.0,           # 毫无弹性
+            static_friction=10.0,       # 极高的静摩擦
+            dynamic_friction=5.5,      
+            restitution=0.1,           # 毫无弹性
             friction_combine_mode="max", 
             restitution_combine_mode="min"
         )
