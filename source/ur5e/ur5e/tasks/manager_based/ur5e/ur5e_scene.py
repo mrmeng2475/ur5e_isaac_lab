@@ -36,7 +36,6 @@ class Ur5eSceneCfg(InteractiveSceneCfg):
     assemble_part_1 = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/AssemblePart_1",
         spawn=sim_utils.UsdFileCfg( 
-            # 👉 优化了路径拼接方式，再也不怕改文件名了
             usd_path=os.path.join(CURRENT_DIR, "../usd/assemble_part/1.usd"), 
             scale=(0.001, 0.001, 0.001), 
             collision_props=sim_utils.CollisionPropertiesCfg(),
@@ -49,7 +48,7 @@ class Ur5eSceneCfg(InteractiveSceneCfg):
     assemble_part_2 = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/AssemblePart_2",
         spawn=sim_utils.UsdFileCfg( 
-            usd_path=os.path.join(CURRENT_DIR, "../usd/assemble_part/2.usd"), 
+            usd_path=os.path.join(CURRENT_DIR, "../usd/assemble_part/_2.usd"), 
             scale=(0.001, 0.001, 0.001),  
             collision_props=sim_utils.CollisionPropertiesCfg(),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
@@ -69,7 +68,7 @@ class Ur5eSceneCfg(InteractiveSceneCfg):
             FrameTransformerCfg.FrameCfg(
                 prim_path="{ENV_REGEX_NS}/Robot/.*wrist_3_link", 
                 name="end_effector",
-                offset=OffsetCfg(pos=(-0.035, 0.24, 0.05),rot=(0.7071, 0.0, -0.7071, 0.0)),
+                offset=OffsetCfg(pos=(-0.035, 0.21, 0.05),rot=(0.7071, 0.0, -0.7071, 0.0)),
             ),
         ],
         

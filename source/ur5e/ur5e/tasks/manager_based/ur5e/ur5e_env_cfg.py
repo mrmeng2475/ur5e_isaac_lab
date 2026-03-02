@@ -19,7 +19,8 @@ from isaaclab.utils import configclass
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer import OffsetCfg 
-from isaaclab.markers.config import FRAME_MARKER_CFG     
+from isaaclab.markers.config import FRAME_MARKER_CFG   
+from isaaclab.sim import SimulationCfg  
 
 
 from . import mdp
@@ -29,7 +30,7 @@ from .ur5e_scene import Ur5eSceneCfg
 # Pre-defined configs
 ##
 
-from ur5e.tasks.manager_based.assets.ur5e_configs import UR5E_CFG, UR5E_ACTION_SCALES
+from ur5e.tasks.manager_based.assets.ur5e_configs import UR5E_CFG
 
 
 ##
@@ -90,6 +91,14 @@ class ObservationsCfg:
 
         # 4. [强烈推荐] 相对位置偏差 (让网络知道目标在哪里)
         ee_to_part2_vec = ObsTerm(func=mdp.ee_to_part2_vec)
+
+        wrist_acc = ObsTerm(
+            func=mdp.link_lin_acc, 
+            params={
+                # 传入机器人实体，并用正则锁定你要查的连杆名称
+                "asset_cfg": SceneEntityCfg("robot", body_names=[".*wrist_3_link"])
+            }
+        )
 
         def __post_init__(self) -> None:
             self.enable_corruption = False # 如果需要加噪声，后续可以设为 True
@@ -172,35 +181,51 @@ class RewardsCfg:
 
     continuous_lift = RewTerm(
         func=mdp.part2_continuous_lift_with_grasp_reward, # 👉 使用带抓取约束的新函数
-        weight=100.0,  
+        weight=1000.0,  
         params={
             "rest_height": 0.93,       # 根据之前的计算，静止时的绝对高度
-            "dist_threshold": 0.01     # 👉 必须保持在 1 厘米内才算抓紧
+            "dist_threshold": 0.015     # 👉 必须保持在 1 厘米内才算抓紧
         }
     )
 
-    grasp_when_close = RewTerm(
-        func=mdp.conditional_grasp_normalized_reward,  # 👉 使用新的归一化函数
-        weight=50.0,  
+    # 1. 阈值外：保持张开手势 (引导性奖励，权重给小一点)
+    finger_posture_open = RewTerm(
+        func=mdp.conditional_posture_tracking_reward, 
+        weight=2.0,  # 👈 较小的权重，只是为了防止它在靠近前乱捏
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=[
-                "l_f_joint1_2", 
-                "l_f_joint1_3", 
-                "l_f_joint1_4", 
-
-                "l_f_joint2_2", 
-                "l_f_joint2_3", 
-
-                "l_f_joint3_2", 
-                "l_f_joint3_3", 
+                "l_f_joint_1", "l_f_joint1_2", "l_f_joint1_3", 
+                "l_f_joint1_4", "l_f_joint2_2", "l_f_joint2_3"
             ]),
-            "dist_threshold": 0.01,  # 只要进入 1 厘米的核心区，就开始闭合
-            # 👉 新增：严格对应上面 7 个关节名称的最大闭合角度
-            "max_angles": [
-                1.38, 0.45, 1.26,  # 食指 (1)
-                1.40, 1.20,        # 中指 (2)
-                1.40, 1.20         # 无名指 (3)
-            ] 
+            "target_angles": [-0.44, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "dist_threshold": 0.015,
+            "active_inside": False, # 👈 核心：在阈值【外】激活
+            "std": 1.0 
+        }
+    )
+
+    # 2. 阈值内：执行抓取手势 (核心任务奖励，权重给大一点)
+    finger_posture_close = RewTerm(
+        func=mdp.conditional_posture_tracking_reward, 
+        weight=20.0,  # 👈 极高的权重，鼓励它只要进入了 1.5 厘米范围内就死死捏住
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=[
+                "l_f_joint_1", "l_f_joint1_2", "l_f_joint1_3", 
+                "l_f_joint1_4", "l_f_joint2_2", "l_f_joint2_3"
+            ]),
+            "target_angles": [0.44, 1.38, 1.2, 1.4, 1.4, 1.2],
+            "dist_threshold": 0.015,
+            "active_inside": True,  # 👈 核心：在阈值【内】激活
+            "std": 1.0 
+        }
+    )
+
+    action_smoothness_penalty = RewTerm(
+        func=mdp.penalize_body_lin_acc_near_target, # 👈 使用新函数
+        weight=-3.0, # 保持负权重
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=[".*wrist_3_link"]),
+            "dist_threshold": 0.02  # 👈 新增参数：进入零件 5 厘米范围内才开始惩罚抖动
         }
     )
 
@@ -212,15 +237,7 @@ class RewardsCfg:
     #         "force_threshold": 0.1  # 力度大于 0.1 牛顿就算有效接触，过滤掉偶尔的计算噪声
     #     }
     # )
-    thumb_open_wide = RewTerm(
-        func=mdp.maximize_negative_joint_pos, # 调用我们刚写的函数
-        weight=2.0,  # 权重设置：建议先从 1.0 或 2.0 开始试
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["l_f_joint_1"]),
-            # 设定阈值：例如进入目标点 1 厘米 (0.01米) 范围内时，瞬间切换为夹紧模式
-            "dist_threshold": 0.01
-        }
-    )
+
 
 @configclass
 class TerminationsCfg:
@@ -283,12 +300,23 @@ class Ur5eEnvCfg(ManagerBasedRLEnvCfg):
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
 
+    sim: SimulationCfg = SimulationCfg(
+        dt=1 / 120,
+        physics_material=sim_utils.RigidBodyMaterialCfg(
+            static_friction=2.0,       # 极高的静摩擦
+            dynamic_friction=1.5,      
+            restitution=0.0,           # 毫无弹性
+            friction_combine_mode="max", 
+            restitution_combine_mode="min"
+        )
+    )
+
     # Post initialization
     def __post_init__(self) -> None:
         """Post initialization."""
         # general settings
         self.decimation = 2
-        self.episode_length_s = 5.0
+        self.episode_length_s = 10.0
         # viewer settings
         self.viewer.eye = (8.0, 0.0, 5.0)
         # simulation settings

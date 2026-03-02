@@ -1,6 +1,7 @@
 import torch
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.sensors import FrameTransformer
+from isaaclab.managers import SceneEntityCfg
 
 # ==============================================================================
 # 自定义观测函数 (Observations)
@@ -38,3 +39,20 @@ def ee_to_part2_vec(env: ManagerBasedRLEnv) -> torch.Tensor:
     part2_pos_w = parts_tf.data.target_pos_w[:, 1, :]
     
     return part2_pos_w - ee_pos_w
+def link_lin_acc(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """
+    直接获取机器人特定连杆 (Link) 在世界坐标系下的线加速度。
+    """
+    # 1. 从场景中获取机器人对象
+    robot = env.scene[asset_cfg.name]
+    
+    # 2. 找到你想获取的那个连杆的内部索引
+    # find_bodies 会根据正则匹配返回 (body_indices, body_names)
+    body_indices = robot.find_bodies(asset_cfg.body_names)[0]
+    
+    # 3. 直接读取底层物理引擎的加速度张量
+    # body_lin_acc_w 的形状是 [num_envs, num_bodies, 3]
+    # 我们取出所有环境 (:), 特定的那个连杆 (body_indices[0]), 的 XYZ 坐标 (:)
+    acc = robot.data.body_lin_acc_w[:, body_indices[0], :]
+    
+    return acc

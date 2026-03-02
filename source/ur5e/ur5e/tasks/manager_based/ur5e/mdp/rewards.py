@@ -211,36 +211,81 @@ def maximize_negative_joint_pos(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCf
     
     return reward
 
-def conditional_grasp_normalized_reward(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, dist_threshold: float, max_angles: list[float]) -> torch.Tensor:
+def conditional_posture_tracking_reward(
+    env: ManagerBasedRLEnv, 
+    asset_cfg: SceneEntityCfg, 
+    target_angles: list[float], 
+    dist_threshold: float, 
+    active_inside: bool,
+    std: float = 1.0
+) -> torch.Tensor:
     """
-    当机械臂末端靠近零件时，鼓励灵巧手的指定关节向正方向（闭合）运动。
-    加入归一化处理，确保各个量程不同的关节对奖励的贡献绝对均衡。
+    按距离条件激活的姿态追踪奖励：
+    - 当 active_inside=True 时，仅在距离 < dist_threshold 时给予奖励（适合抓取动作）
+    - 当 active_inside=False 时，仅在距离 >= dist_threshold 时给予奖励（适合张开/预备动作）
     """
+    # 1. 计算末端与零件的距离
     ee_tf = env.scene["ee_frame"]
     parts_tf = env.scene["parts_frame"]
     ee_pos_w = ee_tf.data.target_pos_w[:, 0, :]
     part2_pos_w = parts_tf.data.target_pos_w[:, 1, :]
     
-    # 计算末端与零件抓取点的距离
     dist = torch.norm(ee_pos_w - part2_pos_w, dim=-1)
     
-    # 判断是否进入抓取阈值 (如 0.01米)
-    is_close = (dist < dist_threshold).float()
-    
-    # 获取指定的 7 个手指关节角度
+    # 2. 根据 active_inside 参数生成判定掩码
+    if active_inside:
+        mask = (dist < dist_threshold).float()
+    else:
+        mask = (dist >= dist_threshold).float()
+        
+    # 3. 获取当前机器人的手指关节角度
     robot = env.scene[asset_cfg.name]
     joint_indices, _ = robot.find_joints(asset_cfg.joint_names)
     finger_pos = robot.data.joint_pos[:, joint_indices]
     
-    # 将传入的最大角度列表转换为 PyTorch 张量，放到与环境相同的 GPU 设备上
-    max_angles_tensor = torch.tensor(max_angles, device=robot.device, dtype=torch.float32)
+    # 4. 将目标角度转换为 GPU 张量
+    target_tensor = torch.tensor(target_angles, device=robot.device, dtype=torch.float32)
     
-    # 👉 核心：归一化 (当前角度 / 最大极限角度)
-    # 使用 clamp 限制在 [0.0, 1.0] 之间，防止物理引擎偶尔的越界导致奖励异常爆炸
-    normalized_finger_pos = torch.clamp(finger_pos / max_angles_tensor, min=0.0, max=1.0)
+    # 5. 计算误差与指数奖励
+    error = torch.sum(torch.abs(finger_pos - target_tensor), dim=-1)
+    reward = torch.exp(-error / std)
     
-    # 将 7 个关节的归一化得分相加（完美全闭合最大得分为 7.0）
-    sum_flexion = torch.sum(normalized_finger_pos, dim=-1)
+    # 6. 核心：只有满足距离条件的机器人才会获得该阶段的分数
+    return reward * mask
+
+def penalize_body_lin_acc_near_target(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, dist_threshold: float) -> torch.Tensor:
+    """
+    惩罚特定连杆在靠近目标零件时的线加速度过大（末端防抖）。
+    只有当末端执行器距离目标零件小于 dist_threshold 时，才会输出加速度惩罚。
+    """
+    # ==========================================
+    # 1. 距离计算与掩码生成 (复用抓取逻辑)
+    # ==========================================
+    ee_tf = env.scene["ee_frame"]
+    parts_tf = env.scene["parts_frame"]
     
-    # 距离小于阈值时才发放分数
-    return sum_flexion * is_close
+    # 提取世界坐标
+    ee_pos_w = ee_tf.data.target_pos_w[:, 0, :]
+    part2_pos_w = parts_tf.data.target_pos_w[:, 1, :]
+    
+    # 计算末端与零件的欧氏距离
+    dist = torch.norm(ee_pos_w - part2_pos_w, dim=-1)
+    
+    # 生成掩码：进入阈值范围记为 1.0，在外面瞎晃悠记为 0.0
+    is_close = (dist < dist_threshold).float()
+    
+    # ==========================================
+    # 2. 加速度大小计算
+    # ==========================================
+    robot = env.scene[asset_cfg.name]
+    body_indices = robot.find_bodies(asset_cfg.body_names)[0]
+    
+    # 获取加速度张量并计算 L2 范数
+    acc = robot.data.body_lin_acc_w[:, body_indices[0], :]
+    acc_magnitude = torch.norm(acc, dim=-1)
+    
+    # ==========================================
+    # 3. 掩码相乘：只惩罚“核心区”的抖动
+    # ==========================================
+    # 当 is_close 为 0 时，惩罚值瞬间归零
+    return acc_magnitude * is_close
