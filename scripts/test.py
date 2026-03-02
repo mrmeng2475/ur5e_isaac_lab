@@ -38,103 +38,97 @@ from isaaclab_tasks.utils import parse_env_cfg
 import ur5e.tasks  # noqa: F401
 
 
-def main():
-    """Sequential target action agent with Isaac Lab environment."""
-    # create environment configuration
-    env_cfg = parse_env_cfg(
-        args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
-    )
-    # create environment
-    env = gym.make(args_cli.task, cfg=env_cfg)
+def get_sequence_action(step_counts, phases, dt, device):
+    """
+    根据当前步数和定义的阶段序列，计算当前应执行的动作。
+    
+    参数:
+        step_counts: (num_envs,) 每个环境当前的运行步数
+        phases: 列表，每个元素为 ([关节角列表], 持续时间_秒)
+        dt: 环境的时间步长 (env.unwrapped.step_dt)
+        device: 计算设备 (cuda/cpu)
+        
+    返回:
+        current_actions: (num_envs, action_dim) 发送给环境的动作 Tensor
+    """
+    num_envs = step_counts.shape[0]
+    action_dim = len(phases[0][0])
+    
+    # 预计算每个阶段的截止步数
+    phase_end_steps = []
+    cumulative_steps = 0
+    for _, duration in phases:
+        cumulative_steps += int(duration / dt)
+        phase_end_steps.append(cumulative_steps)
 
-    print(f"[INFO]: Gym observation space: {env.observation_space}")
-    print(f"[INFO]: Gym action space: {env.action_space}")
+    # 默认执行最后一个阶段的动作（当超过总时长时）
+    last_action = torch.tensor(phases[-1][0], device=device).repeat(num_envs, 1)
+    current_actions = last_action
+
+    # 从倒数第二个阶段开始向前判断，使用 torch.where 嵌套逻辑（像洋葱一样包裹）
+    # 只要 step_counts 小于该阶段的截止步数，就覆盖为该阶段的动作
+    for i in range(len(phases) - 2, -1, -1):
+        phase_action = torch.tensor(phases[i][0], device=device).repeat(num_envs, 1)
+        mask = (step_counts < phase_end_steps[i]).unsqueeze(1)
+        current_actions = torch.where(mask, phase_action, current_actions)
+
+    return current_actions
+
+# =========================================================================
+# 3. 主程序
+# =========================================================================
+
+def main():
+    # 创建环境配置
+    env_cfg = parse_env_cfg(
+        args_cli.task, 
+        device=args_cli.device, 
+        num_envs=args_cli.num_envs, 
+        use_fabric=not args_cli.disable_fabric
+    )
+    # 创建环境
+    env = gym.make(args_cli.task, cfg=env_cfg)
+    
+    device = env.unwrapped.device
+    num_envs = env.unwrapped.num_envs
+    dt = env.unwrapped.step_dt # 获取环境的步长
+
+    print(f"[INFO]: 成功创建环境，环境数量: {num_envs}")
+    
+    # --- 定义动作序列 ---
+    # 格式: ([关节角], 持续时间秒)
+    # 假设前 6 位是 UR5e 机械臂，后 6 位是灵巧手
+    task_phases = [
+        ([0.0, 0.0, 0.0, -0.87, 0.0, 0.6,   0.0, 0.0, 0.0, 0.0, 0.0, 0.0], 1.0),   # 1. 预备
+        ([-0.01, 0.26, 0.26, -0.87, 0.0, 0.6, -0.44, 0.0, 0.0, 0.0, 0.0, 0.0], 2.0), # 2. 接近
+        ([-0.01, 0.26, 0.26, -0.87, 0.0, 0.6, 0.0, 0.5, 1.2, 1.4, 1.4, 1.2], 1.0),   # 3. 抓紧
+        ([0.0, 0.1, 0.0, -0.82, -0.2, 0.5,   0.44, 1.38, 1.2, 1.4, 1.4, 1.2], 3.0),    # 4. 抬起
+        ([0.2, 0.1, 0.0, -0.82, -0.2, 0.5,   0.44, 1.38, 1.2, 1.4, 1.4, 1.2], 4.0),    # 5. 保持
+        ([0.2, 0.15, 0.15, -0.6, -0.2, 0.4,   0.44, 1.38, 1.2, 1.4, 1.4, 1.2], 4.0),    # 5. 保持
+        ([0.2, 0.15, 0.15, -0.6, -0.2, 0.4,   -0.44, 0.0, 0.0, 0.0, 0.0, 0.0], 4.0),    # 5. 保持
+    ]
+
+    # 初始化计时器
+    step_counts = torch.zeros(num_envs, dtype=torch.long, device=device)
     env.reset()
 
-    # =========================================================================
-    # 👉 核心修改：四阶段动作控制 (预备 -> 接近 -> 抓紧 -> 抬起)
-    # =========================================================================
-    num_envs = env.unwrapped.num_envs
-    device = env.unwrapped.device
-
-    # 阶段 1：抬起手腕等待 (0 ~ 1秒)
-    phase1_actions_list = [
-        0.0, 0.0, 0.0, -0.87, 0.0, 0.6,
-        0.0, 0.0, 0.0, 0.0, 0.0, 0.0 
-    ]
-    # 阶段 2：机械臂移动到目标点，灵巧手张开 (1 ~ 3秒)
-    phase2_actions_list = [
-        -0.01, 0.26, 0.26, -0.87, 0.0, 0.6,
-        -0.44, 0.0, 0.0, 0.0, 0.0, 0.0
-    ]
-    # 阶段 3：机械臂保持不动，灵巧手闭合抓取 (3 ~ 4秒)
-    phase3_actions_list = [
-        -0.01, 0.26, 0.26, -0.87, 0.0, 0.6,   
-        0.0, 0.5, 1.2, 1.4, 1.4, 1.2     
-    ]
-    # 阶段 4：灵巧手保持抓紧，机械臂抬起回到安全位置 (4秒之后)
-    phase4_actions_list = [
-        0.0, 0.0, 0.0, -0.82, 0.0, 0.5,   # 👈 机械臂执行新的抬起动作
-        0.44, 1.38, 1.2, 1.4, 1.4, 1.2      # 👈 灵巧手保持阶段 3 的抓紧状态！
-    ]
-    
-    # 转换为 Tensor 并扩充到所有并行环境
-    phase1_actions = torch.tensor(phase1_actions_list, device=device, dtype=torch.float32).repeat(num_envs, 1)
-    phase2_actions = torch.tensor(phase2_actions_list, device=device, dtype=torch.float32).repeat(num_envs, 1)
-    phase3_actions = torch.tensor(phase3_actions_list, device=device, dtype=torch.float32).repeat(num_envs, 1)
-    phase4_actions = torch.tensor(phase4_actions_list, device=device, dtype=torch.float32).repeat(num_envs, 1) # 新增
-
-    # ⌚ 独立计时器
-    step_counts = torch.zeros(num_envs, dtype=torch.long, device=device)
-    
-    # 时间节点配置 (你可以根据需要微调这些秒数)
-    wait_steps_1 = int(1.0 / env.unwrapped.step_dt) # 第 1 阶段：0~1秒
-    wait_steps_2 = int(3.0 / env.unwrapped.step_dt) # 第 2 阶段：1~3秒
-    wait_steps_3 = int(5.0 / env.unwrapped.step_dt) # 第 3 阶段：3~4秒 (给灵巧手1秒钟的时间抓牢)
-
-    # =========================================================================
-
-    # simulate environment
     while simulation_app.is_running():
-        # run everything in inference mode
         with torch.inference_mode():
+            # 1. 调用新函数获取当前应执行的动作
+            actions = get_sequence_action(step_counts, task_phases, dt, device)
             
-            # 👇 1. 动态生成 Mask
-            mask_phase1 = (step_counts < wait_steps_1).unsqueeze(1)
-            mask_phase2 = (step_counts < wait_steps_2).unsqueeze(1)
-            mask_phase3 = (step_counts < wait_steps_3).unsqueeze(1) # 新增
+            # 2. 物理步进
+            obs, rewards, terminated, truncated, info = env.step(actions)
             
-            # 👇 2. GPU 高效并行分发动作 (嵌套逻辑，像洋葱一样一层层剥开)
-            active_actions = torch.where(
-                mask_phase1, 
-                phase1_actions, 
-                torch.where(
-                    mask_phase2, 
-                    phase2_actions, 
-                    torch.where(
-                        mask_phase3, 
-                        phase3_actions, 
-                        phase4_actions # 如果都大于 4 秒，就执行抬起！
-                    )
-                )
-            )
-                
-            # 👇 3. 物理步进
-            obs, rewards, terminated, truncated, info = env.step(active_actions)
-            
-            # 👇 4. 步数全面 +1
+            # 3. 统计步数
             step_counts += 1
             
-            # 👇 5. 环境重生检测
+            # 4. 环境重生检测 (如果某个环境结束了，重置该环境的计时器)
             dones = terminated | truncated
             step_counts[dones] = 0
 
-    # close the simulator
     env.close()
 
-
 if __name__ == "__main__":
-    # run the main function
     main()
-    # close sim app
     simulation_app.close()

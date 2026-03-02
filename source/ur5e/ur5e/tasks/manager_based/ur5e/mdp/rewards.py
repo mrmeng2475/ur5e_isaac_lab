@@ -289,3 +289,34 @@ def penalize_body_lin_acc_near_target(env: ManagerBasedRLEnv, asset_cfg: SceneEn
     # ==========================================
     # 当 is_close 为 0 时，惩罚值瞬间归零
     return acc_magnitude * is_close
+
+def ee_to_part2_top_down_reward(
+    env: ManagerBasedRLEnv,
+    std: float = 0.1,
+    xy_threshold: float = 0.04
+) -> torch.Tensor:
+    """
+    解耦 XY 和 Z 轴的自顶向下接近奖励（完美消除奖励悬崖）。
+    """
+    ee_tf = env.scene["ee_frame"]
+    parts_tf = env.scene["parts_frame"]
+    
+    ee_pos_w = ee_tf.data.target_pos_w[:, 0, :]
+    part2_pos_w = parts_tf.data.target_pos_w[:, 1, :]
+
+    # 1. 计算水平面 (XY) 的 2D 距离和奖励
+    xy_dist = torch.norm(ee_pos_w[:, :2] - part2_pos_w[:, :2], dim=-1)
+    r_xy = torch.exp(-xy_dist / std)
+
+    # 2. 计算垂直高度 (Z) 的 1D 距离和奖励
+    z_dist = torch.abs(ee_pos_w[:, 2] - part2_pos_w[:, 2])
+    r_z = torch.exp(-z_dist / std)
+
+    # 3. 生成“允许下潜”的掩码 (只有 XY 距离小于 4cm 时才为 1)
+    is_xy_aligned = (xy_dist < xy_threshold).float()
+
+    # 👉 核心机制：
+    # XY 对齐永远给分（引导它来到正上方）。
+    # Z 轴下潜的分数，必须在 XY 对齐后才激活发放，并且给予 3.0 倍的巨量加成！
+    # 这样它越往下潜，拿到的分数就越是呈现指数级飙升。
+    return r_xy + (r_z * is_xy_aligned * 3.0)

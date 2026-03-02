@@ -161,16 +161,19 @@ class RewardsCfg:
     
     # 👉 1. 独立的位置靠近奖励
     reach_part_2_pos = RewTerm(
-        func=mdp.ee_to_part2_pos_reward,
-        weight=10.0,   # 你可以独立调整这个权重
-        params={"std": 0.2}
+        func=mdp.ee_to_part2_top_down_reward, 
+        weight=10.0,   
+        params={
+            "std": 0.1,
+            "xy_threshold": 0.03   # 4cm 的宽容下潜通道
+        }
     )
-    # 👉 1厘米高精度区域奖励
-    fine_reach_part_2_pos = RewTerm(
-        func=mdp.ee_to_part2_fine_pos_reward,  # 调用刚才写的阶跃函数
-        weight=50.0,   # 权重给高一点！只要待在这 1cm 的球体里，每步都拿 50 分
-        params={"threshold": 0.015}  # 0.01 米 = 1 厘米
-    )
+    # # 👉 1厘米高精度区域奖励
+    # fine_reach_part_2_pos = RewTerm(
+    #     func=mdp.ee_to_part2_fine_pos_reward,  # 调用刚才写的阶跃函数
+    #     weight=50.0,   # 权重给高一点！只要待在这 1cm 的球体里，每步都拿 50 分
+    #     params={"threshold": 0.015}  # 0.01 米 = 1 厘米
+    # )
 
     # 👉 2. 独立的姿态对齐奖励
     reach_part_2_rot = RewTerm(
@@ -181,10 +184,10 @@ class RewardsCfg:
 
     continuous_lift = RewTerm(
         func=mdp.part2_continuous_lift_with_grasp_reward, # 👉 使用带抓取约束的新函数
-        weight=1000.0,  
+        weight=2000.0,  
         params={
             "rest_height": 0.93,       # 根据之前的计算，静止时的绝对高度
-            "dist_threshold": 0.015     # 👉 必须保持在 1 厘米内才算抓紧
+            "dist_threshold": 0.02     # 👉 必须保持在 1 厘米内才算抓紧
         }
     )
 
@@ -198,7 +201,7 @@ class RewardsCfg:
                 "l_f_joint1_4", "l_f_joint2_2", "l_f_joint2_3"
             ]),
             "target_angles": [-0.44, 0.0, 0.0, 0.0, 0.0, 0.0],
-            "dist_threshold": 0.015,
+            "dist_threshold": 0.02,
             "active_inside": False, # 👈 核心：在阈值【外】激活
             "std": 1.0 
         }
@@ -207,27 +210,27 @@ class RewardsCfg:
     # 2. 阈值内：执行抓取手势 (核心任务奖励，权重给大一点)
     finger_posture_close = RewTerm(
         func=mdp.conditional_posture_tracking_reward, 
-        weight=20.0,  # 👈 极高的权重，鼓励它只要进入了 1.5 厘米范围内就死死捏住
+        weight=2000.0,  # 👈 极高的权重，鼓励它只要进入了 1.5 厘米范围内就死死捏住
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=[
                 "l_f_joint_1", "l_f_joint1_2", "l_f_joint1_3", 
                 "l_f_joint1_4", "l_f_joint2_2", "l_f_joint2_3"
             ]),
             "target_angles": [0.44, 1.38, 1.2, 1.4, 1.4, 1.2],
-            "dist_threshold": 0.015,
+            "dist_threshold": 0.02,
             "active_inside": True,  # 👈 核心：在阈值【内】激活
             "std": 1.0 
         }
     )
 
-    action_smoothness_penalty = RewTerm(
-        func=mdp.penalize_body_lin_acc_near_target, # 👈 使用新函数
-        weight=-3.0, # 保持负权重
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=[".*wrist_3_link"]),
-            "dist_threshold": 0.02  # 👈 新增参数：进入零件 5 厘米范围内才开始惩罚抖动
-        }
-    )
+    # action_smoothness_penalty = RewTerm(
+    #     func=mdp.penalize_body_lin_acc_near_target, # 👈 使用新函数
+    #     weight=-3.0, # 保持负权重
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", body_names=[".*wrist_3_link"]),
+    #         "dist_threshold": 0.02  # 👈 新增参数：进入零件 5 厘米范围内才开始惩罚抖动
+    #     }
+    # )
 
     # finger_touch_part2 = RewTerm(
     #     func=mdp.finger_part2_contact_reward,  # 调用我们刚写的函数
@@ -316,7 +319,7 @@ class Ur5eEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         # general settings
         self.decimation = 2
-        self.episode_length_s = 10.0
+        self.episode_length_s = 20.0
         # viewer settings
         self.viewer.eye = (8.0, 0.0, 5.0)
         # simulation settings

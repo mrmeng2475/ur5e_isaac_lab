@@ -82,7 +82,7 @@ def convert_stl_to_usd(stl_path: str, output_path: str) -> bool:
         # 👉 核心新增 2：给网格加上凸包碰撞属性
         UsdPhysics.CollisionAPI.Apply(mesh.GetPrim())
         mesh_collision = UsdPhysics.MeshCollisionAPI.Apply(mesh.GetPrim())
-        mesh_collision.CreateApproximationAttr().Set(UsdPhysics.Tokens.convexHull)
+        mesh_collision.CreateApproximationAttr().Set(UsdPhysics.Tokens.convexDecomposition)
 
         # Save the stage
         stage.GetRootLayer().Save()
