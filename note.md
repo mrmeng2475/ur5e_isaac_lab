@@ -1,5 +1,5 @@
 
-python /home/bygpu/work_space/ur5e_isaac_lab/ur5e/scripts/zero_agent.py --task "Template-Ur5e-v0" --num_envs 2
+python scripts/zero_agent.py --task "Template-Ur5e-v0" --num_envs 2
 
 # stl转usd
 python scripts/stl_to_usd_visualizer.py --stl_path source/ur5e/ur5e/tasks/manager_based/usd/assemble_part/1.stl
@@ -8,10 +8,16 @@ python scripts/stl_to_usd_visualizer.py --stl_path source/ur5e/ur5e/tasks/manage
 # 可视化
 python scripts/rsl_rl/train.py --task Template-Ur5e-v0  --num_envs 16
 # 训练
-python scripts/rsl_rl/train.py --task Template-Ur5e-v0  --num_envs 4096 --headless
+python scripts/rsl_rl/train.py --task Template-Ur5e-v0  --num_envs 1024 --headless --checkpoint logs/rsl_rl/cartpole_direct/2026-03-06_16-37-43/model_1450.pt
 # 
-python scripts/rsl_rl/play.py --task Template-Ur5e-v0 --num_envs 32  --load_run 2026-02-28_22-12-07 --checkpoint model_3999.pt
+python scripts/rsl_rl/play.py --task Template-Ur5e-v0 --num_envs 4  --checkpoint /home/mrmeng/work_space/rl/ur5e_isaac_lab/logs/rsl_rl/cartpole_direct/2026-03-06_16-37-43/model_1450.pt
 
 # 有效果
 
-2026-02-26_13-42-44 (跟踪效果比较好)
+python scripts/rsl_rl/train.py \
+    --task Template-Ur5e-v0 \
+    --num_envs 1024 \
+    --headless \
+    --resume \
+    --load_run 2026-03-06_16-37-43 \
+    --checkpoint model_1450.pt

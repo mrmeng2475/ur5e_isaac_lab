@@ -21,6 +21,7 @@ from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer import OffsetCfg 
 from isaaclab.markers.config import FRAME_MARKER_CFG     
 from isaaclab.sim import SimulationCfg
+from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 
 
 from . import mdp
@@ -43,26 +44,29 @@ class ActionsCfg:
     """Action specifications for the MDP."""
     
     # 1. 机械臂前 6 个轴
-    arm_action = mdp.JointPositionActionCfg(
-        asset_name="robot", 
-        joint_names=["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"], 
-        scale={
-            "shoulder.*": 3.14,  
-            "elbow_joint": 3.14, 
-            "wrist_1_joint": 3.14,
-            "wrist_2_joint": 3.14,
-            "wrist_3_joint": 3.14,
-        },  
-        use_default_offset=True,
-        # 👇 修复：改为字典格式，".*" 匹配上述 6 个关节
-        # clip={".*": (-1.0, 1.0)} 
+    arm_action = mdp.DifferentialInverseKinematicsActionCfg(
+        asset_name="robot",
+        joint_names=["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"],
+        # 绑定 ee_frame 所在的父级 link
+        body_name=".*wrist_3_link", 
+        # 将 ur5e_scene.py 中 ee_frame 的 offset 原样搬过来，使 IK 求解点与观测点一致
+        body_offset=OffsetCfg(
+            pos=(-0.035, 0.24, 0.05),
+            rot=(0.7071, 0.0, -0.7071, 0.0)
+        ),
+        controller=DifferentialIKControllerCfg(
+            command_type="pose",      # 控制目标为 6D 位姿 ("pose" 包括位置和姿态，"position" 仅控制位置)
+            use_relative_mode=True,   # True 表示网络输出的是相对于当前位姿的微小增量 (dx, dy, dz, droll, dpitch, dyaw)
+            ik_method="dls",          # 雅可比阻尼最小二乘法 (Damped Least Squares)，处理奇异点更稳定
+        ),
+        scale=0.05, # 缩放系数。因为网络输出通常在 [-1, 1]，此系数表示每步最大的位移增量，建议设小一点保证求解稳定
     )
     
     # 2. 灵巧手
     hand_action = mdp.JointPositionActionCfg(
         asset_name="robot",
         joint_names=["l_f_joint.*"],  
-        scale=1.5,  
+        scale=3.0,  
         use_default_offset=True,
         # 👇 修复：改为字典格式，".*" 匹配灵巧手的关节
         # clip={".*": (-1.0, 1.0)}
@@ -182,9 +186,10 @@ class RewardsCfg:
 
     grasp_when_close = RewTerm(
         func=mdp.conditional_grasp_normalized_reward,  # 👉 使用新的归一化函数
-        weight=50.0,  
+        weight=500.0,  
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=[
+                "l_f_joint_1",
                 "l_f_joint1_2", 
                 "l_f_joint1_3", 
                 "l_f_joint1_4", 
@@ -195,12 +200,12 @@ class RewardsCfg:
                 "l_f_joint3_2", 
                 "l_f_joint3_3", 
             ]),
-            "dist_threshold": 0.01,  # 只要进入 1 厘米的核心区，就开始闭合
-            # 👉 新增：严格对应上面 7 个关节名称的最大闭合角度
+            "dist_threshold": 0.025,  # 只要进入 2.5 厘米的核心区，就开始闭合
+            # 👉 新增：严格对应上面 8 个关节名称的最大闭合角度
             "max_angles": [
-                1.38, 0.45, 1.26,  # 食指 (1)
-                1.40, 1.20,        # 中指 (2)
-                1.40, 1.20         # 无名指 (3)
+                0.44, 0.8, 0.45, 0.3,  # 食指 (1)
+                1.40, 0.6,        # 中指 (2)
+                1.40, 0.6         # 无名指 (3)
             ] 
         }
     )
@@ -213,16 +218,23 @@ class RewardsCfg:
     #         "force_threshold": 0.1  # 力度大于 0.1 牛顿就算有效接触，过滤掉偶尔的计算噪声
     #     }
     # )
-    thumb_open_wide = RewTerm(
-        func=mdp.maximize_negative_joint_pos, # 调用我们刚写的函数
-        weight=2.0,  # 权重设置：建议先从 1.0 或 2.0 开始试
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["l_f_joint_1"]),
-            # 设定阈值：例如进入目标点 1 厘米 (0.01米) 范围内时，瞬间切换为夹紧模式
-            "dist_threshold": 0.01
-        }
-    )
+    # thumb_open_wide = RewTerm(
+    #     func=mdp.maximize_negative_joint_pos, # 调用我们刚写的函数
+    #     weight=2.0,  # 权重设置：建议先从 1.0 或 2.0 开始试
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", joint_names=["l_f_joint_1"]),
+    #         # 设定阈值：例如进入目标点 1 厘米 (0.01米) 范围内时，瞬间切换为夹紧模式
+    #         "dist_threshold": 0.015
+    #     }
+    # )
+        # action penalty
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
 
+    joint_vel = RewTerm(
+        func=mdp.joint_vel_l2,
+        weight=-0.01,
+        params={"asset_cfg": SceneEntityCfg("robot")},
+    )
 @configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
@@ -299,10 +311,16 @@ class Ur5eEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self) -> None:
         """Post initialization."""
         # general settings
-        self.decimation = 2
+        self.decimation = 6
         self.episode_length_s = 5.0
         # viewer settings
         self.viewer.eye = (8.0, 0.0, 5.0)
         # simulation settings
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation
+
+        self.sim.physx.bounce_threshold_velocity = 0.2
+        self.sim.physx.bounce_threshold_velocity = 0.01
+        self.sim.physx.gpu_found_lost_aggregate_pairs_capacity = 1024 * 1024 * 4
+        self.sim.physx.gpu_total_aggregate_pairs_capacity = 16 * 1024
+        self.sim.physx.friction_correlation_distance = 0.00625

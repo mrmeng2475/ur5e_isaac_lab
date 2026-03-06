@@ -239,7 +239,7 @@ def conditional_grasp_normalized_reward(env: ManagerBasedRLEnv, asset_cfg: Scene
     # 使用 clamp 限制在 [0.0, 1.0] 之间，防止物理引擎偶尔的越界导致奖励异常爆炸
     normalized_finger_pos = torch.clamp(finger_pos / max_angles_tensor, min=0.0, max=1.0)
     
-    # 将 7 个关节的归一化得分相加（完美全闭合最大得分为 7.0）
+    # 将 7 个关节的归一化得分相加（完美全闭合最大得分为 8.0）
     sum_flexion = torch.sum(normalized_finger_pos, dim=-1)
     
     # 距离小于阈值时才发放分数

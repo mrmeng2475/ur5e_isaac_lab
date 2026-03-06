@@ -1,6 +1,7 @@
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from pathlib import Path
 
 UR5E_JOINT_LIMITS = {
@@ -96,15 +97,15 @@ UR5E_CFG = ArticulationCfg(
                 "wrist_3_joint": 2.61,
             },
             effort_limit_sim={
-                "shoulder_pan_joint": 200.0,
-                "shoulder_lift_joint": 200.0,
-                "elbow_joint": 200.0,
+                "shoulder_pan_joint": 300.0,
+                "shoulder_lift_joint": 300.0,
+                "elbow_joint": 300.0,
                 "wrist_1_joint": 80.0,
                 "wrist_2_joint": 80.0,
                 "wrist_3_joint": 40.0,
             },
-            stiffness=50.0,
-            damping=5.0,
+            stiffness=400.0,  
+            damping=80.0,
         ),
         "dexhand": ImplicitActuatorCfg(
             joint_names_expr=[
@@ -119,10 +120,10 @@ UR5E_CFG = ArticulationCfg(
                 "l_f_joint3_2",
                 "l_f_joint3_3",
             ],
-            velocity_limit_sim=0.8,
-            effort_limit_sim=20,
-            stiffness=30,
-            damping=3,
+            velocity_limit_sim=1.5,
+            effort_limit_sim=10,
+            stiffness=50,
+            damping=5.0,
         ),
     },
     soft_joint_pos_limit_factor=1.0,
