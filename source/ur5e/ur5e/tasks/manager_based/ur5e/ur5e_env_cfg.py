@@ -51,8 +51,8 @@ class ActionsCfg:
         body_name=".*wrist_3_link", 
         # 将 ur5e_scene.py 中 ee_frame 的 offset 原样搬过来，使 IK 求解点与观测点一致
         body_offset=OffsetCfg(
-            pos=(-0.035, 0.24, 0.05),
-            rot=(0.7071, 0.0, -0.7071, 0.0)
+            pos=(-0.018, 0.22, 0.05),
+            rot=(0.0, 0.0, 1.0, 0.0)
         ),
         controller=DifferentialIKControllerCfg(
             command_type="pose",      # 控制目标为 6D 位姿 ("pose" 包括位置和姿态，"position" 仅控制位置)
@@ -177,15 +177,23 @@ class RewardsCfg:
 
     continuous_lift = RewTerm(
         func=mdp.part2_continuous_lift_with_grasp_reward, # 👉 使用带抓取约束的新函数
-        weight=1000.0,  
+        weight=20000.0,  
         params={
             "rest_height": 0.93,       # 根据之前的计算，静止时的绝对高度
-            "dist_threshold": 0.025     # 👉 必须保持在 1 厘米内才算抓紧
+            "dist_threshold": 0.035     # 👉 必须保持在 1 厘米内才算抓紧
         }
     )
-
+    lift_bonus = RewTerm(
+        func=mdp.object_is_lifted, 
+        weight=80000.0, 
+        params={
+            "rest_height": 0.93,   # 零件静止时的高度
+            "threshold": 0.01,      # 离地 2cm 触发
+            "dist_threshold": 0.035 # 抓取距离阈值
+        }
+    )
     grasp_when_close = RewTerm(
-        func=mdp.conditional_grasp_normalized_reward,  # 👉 使用新的归一化函数
+        func=mdp.conditional_grasp_normalized_reward,  
         weight=500.0,  
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=[
@@ -200,12 +208,17 @@ class RewardsCfg:
                 "l_f_joint3_2", 
                 "l_f_joint3_3", 
             ]),
-            "dist_threshold": 0.025,  # 只要进入 2.5 厘米的核心区，就开始闭合
-            # 👉 新增：严格对应上面 8 个关节名称的最大闭合角度
+            "dist_threshold": 0.025,  
             "max_angles": [
-                0.44, 0.8, 0.45, 0.3,  # 食指 (1)
-                1.40, 0.6,        # 中指 (2)
-                1.40, 0.6         # 无名指 (3)
+                0.2, 0.7, 0.45, 0.2,  # 食指 (1)
+                1.40, 0.6,             # 中指 (2)
+                1.40, 0.6              # 无名指 (3)
+            ],
+            # 👉 新增：严格对应上面 8 个关节的逼近权重
+            "joint_weights": [
+                3.0, 1.5, 0.6, 0.1,    # 食指 (1): 根部和第二段更重要，指尖给 0.2
+                2.0, 0.8,              # 中指 (2): 根部给 1.5，末段给 0.8
+                2.0, 0.5               # 无名指 (3): 辅助发力，整体给小一点
             ] 
         }
     )
@@ -311,8 +324,8 @@ class Ur5eEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self) -> None:
         """Post initialization."""
         # general settings
-        self.decimation = 6
-        self.episode_length_s = 5.0
+        self.decimation = 4
+        self.episode_length_s = 20.0
         # viewer settings
         self.viewer.eye = (8.0, 0.0, 5.0)
         # simulation settings

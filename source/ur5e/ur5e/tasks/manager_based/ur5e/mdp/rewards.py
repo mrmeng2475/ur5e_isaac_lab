@@ -136,7 +136,7 @@ def part2_continuous_lift_with_grasp_reward(env: ManagerBasedRLEnv, rest_height:
     part2_z_w = parts_tf.data.target_pos_w[:, 1, 2]
     
     # 计算抬起高度（加入 1cm 的防抖动缓冲）
-    lift_diff = part2_z_w - (rest_height + 0.001)
+    lift_diff = part2_z_w - (rest_height + 0.0001)
     
     # 限制下限为 0，没举起来就不给分
     actual_lift = torch.clamp(lift_diff, min=0.0)
@@ -211,10 +211,16 @@ def maximize_negative_joint_pos(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCf
     
     return reward
 
-def conditional_grasp_normalized_reward(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, dist_threshold: float, max_angles: list[float]) -> torch.Tensor:
+def conditional_grasp_normalized_reward(
+    env: ManagerBasedRLEnv, 
+    asset_cfg: SceneEntityCfg, 
+    dist_threshold: float, 
+    max_angles: list[float],
+    joint_weights: list[float]  # 👉 新增参数：各个关节的独立权重
+) -> torch.Tensor:
     """
     当机械臂末端靠近零件时，鼓励灵巧手的指定关节向正方向（闭合）运动。
-    加入归一化处理，确保各个量程不同的关节对奖励的贡献绝对均衡。
+    加入归一化处理，并允许为不同关节分配不同的逼近权重。
     """
     ee_tf = env.scene["ee_frame"]
     parts_tf = env.scene["parts_frame"]
@@ -224,23 +230,43 @@ def conditional_grasp_normalized_reward(env: ManagerBasedRLEnv, asset_cfg: Scene
     # 计算末端与零件抓取点的距离
     dist = torch.norm(ee_pos_w - part2_pos_w, dim=-1)
     
-    # 判断是否进入抓取阈值 (如 0.01米)
+    # 判断是否进入抓取阈值
     is_close = (dist < dist_threshold).float()
     
-    # 获取指定的 7 个手指关节角度
+    # 获取指定的 8 个手指关节角度
     robot = env.scene[asset_cfg.name]
     joint_indices, _ = robot.find_joints(asset_cfg.joint_names)
     finger_pos = robot.data.joint_pos[:, joint_indices]
     
-    # 将传入的最大角度列表转换为 PyTorch 张量，放到与环境相同的 GPU 设备上
+    # 将传入的列表转换为 PyTorch 张量
     max_angles_tensor = torch.tensor(max_angles, device=robot.device, dtype=torch.float32)
+    weights_tensor = torch.tensor(joint_weights, device=robot.device, dtype=torch.float32) # 👉 转换权重列表
     
-    # 👉 核心：归一化 (当前角度 / 最大极限角度)
-    # 使用 clamp 限制在 [0.0, 1.0] 之间，防止物理引擎偶尔的越界导致奖励异常爆炸
+    # 核心：归一化 (当前角度 / 最大极限角度)
     normalized_finger_pos = torch.clamp(finger_pos / max_angles_tensor, min=0.0, max=1.0)
     
-    # 将 7 个关节的归一化得分相加（完美全闭合最大得分为 8.0）
-    sum_flexion = torch.sum(normalized_finger_pos, dim=-1)
+    # 👉 将归一化后的值乘以对应关节的权重，再相加
+    weighted_finger_pos = normalized_finger_pos * weights_tensor
+    sum_flexion = torch.sum(weighted_finger_pos, dim=-1)
     
     # 距离小于阈值时才发放分数
     return sum_flexion * is_close
+
+def object_is_lifted(env: ManagerBasedRLEnv, rest_height: float, threshold: float, dist_threshold: float = 0.02) -> torch.Tensor:
+    ee_tf: FrameTransformer = env.scene["ee_frame"]
+    parts_tf: FrameTransformer = env.scene["parts_frame"]
+    
+    # 提取坐标
+    ee_pos_w = ee_tf.data.target_pos_w[:, 0, :]
+    part2_pos_w = parts_tf.data.target_pos_w[:, 1, :]
+    part2_z_w = part2_pos_w[:, 2]
+
+    # 判断高度是否达标
+    is_lifted = (part2_z_w > (rest_height + threshold)).float()
+    
+    # 判断是否在抓取范围内
+    dist = torch.norm(ee_pos_w - part2_pos_w, dim=-1)
+    is_grasped = (dist < dist_threshold).float()
+
+    # 必须同时满足“抓紧”和“离地”才能拿分
+    return is_lifted * is_grasped

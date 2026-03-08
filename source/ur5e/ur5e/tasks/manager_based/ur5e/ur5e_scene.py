@@ -69,7 +69,8 @@ class Ur5eSceneCfg(InteractiveSceneCfg):
             FrameTransformerCfg.FrameCfg(
                 prim_path="{ENV_REGEX_NS}/Robot/.*wrist_3_link", 
                 name="end_effector",
-                offset=OffsetCfg(pos=(-0.035, 0.24, 0.05),rot=(0.7071, 0.0, -0.7071, 0.0)),
+                # offset=OffsetCfg(pos=(-0.035, 0.205, 0.05),rot=(0.7071, 0.0, -0.7071, 0.0)),
+                offset=OffsetCfg(pos=(-0.018, 0.22, 0.05),rot=(0.0, 0.0, 1.0, 0.0)),
             ),
         ],
         
