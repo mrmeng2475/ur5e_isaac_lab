@@ -186,7 +186,7 @@ class RewardsCfg:
 
     assemble_part2_to_part1_pos = RewTerm(
             func=mdp.part2_assemble_pos_reward, 
-            weight=20000.0,  
+            weight=1000.0,  
             params={
                 "std": 0.2,            # 位置逼近的宽容度 (0.05代表衰减较快，要求较精确)
                 "dist_threshold": 0.035  # 抓取约束阈值
@@ -196,7 +196,7 @@ class RewardsCfg:
     # 2. 装配姿态对齐奖励
     assemble_part2_to_part1_rot = RewTerm(
         func=mdp.part2_assemble_rot_reward, 
-        weight=5000.0,   
+        weight=500.0,   
         params={
             "std": 0.1,             # Z轴对齐的宽容度
             "dist_threshold": 0.035  # 抓取约束阈值
@@ -204,7 +204,7 @@ class RewardsCfg:
     )
     lift_bonus = RewTerm(
         func=mdp.object_is_lifted, 
-        weight=80000.0, 
+        weight=2000.0, 
         params={
             "rest_height": 0.93,   # 零件静止时的高度
             "threshold": 0.01,      # 离地 2cm 触发
@@ -213,7 +213,7 @@ class RewardsCfg:
     )
     grasp_when_close = RewTerm(
         func=mdp.conditional_grasp_normalized_reward,  
-        weight=500.0,  
+        weight=100.0,  
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=[
                 "l_f_joint_1",
