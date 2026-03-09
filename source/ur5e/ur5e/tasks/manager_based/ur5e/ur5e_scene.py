@@ -37,12 +37,12 @@ class Ur5eSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/AssemblePart_1",
         spawn=sim_utils.UsdFileCfg( 
             # 👉 优化了路径拼接方式，再也不怕改文件名了
-            usd_path=os.path.join(CURRENT_DIR, "../usd/assemble_part/1.usd"), 
-            scale=(0.001, 0.001, 0.001), 
+            usd_path=os.path.join(CURRENT_DIR, "../usd/assemble_part/6.usd"), 
+            # scale=(0.001, 0.001, 0.001), 
             collision_props=sim_utils.CollisionPropertiesCfg(),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.1, 0.4, 0.82)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.20, 0.50, 0.86),rot=(0.7071, 0.7071, 0.0, 0.0)),
         debug_vis=False,
     )
 
@@ -54,7 +54,7 @@ class Ur5eSceneCfg(InteractiveSceneCfg):
             collision_props=sim_utils.CollisionPropertiesCfg(),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.6, 0.3, 0.82)), 
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.6, 0.3, 0.80)), 
         debug_vis=False,
     )
 
@@ -93,7 +93,8 @@ class Ur5eSceneCfg(InteractiveSceneCfg):
                 prim_path="{ENV_REGEX_NS}/AssemblePart_1", 
                 name="part_1",
                 offset=OffsetCfg(
-                    pos=(0.075, 0.075, 0.15),  
+                    # pos=(0.075, 0.075, 0.15),  
+                    pos=(0.0, 0.25, 0.0),rot=(0.7071, -0.7071, 0.0, 0.0),  
                 ),
             ),
             FrameTransformerCfg.FrameCfg(

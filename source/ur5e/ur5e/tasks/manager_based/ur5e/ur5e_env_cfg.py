@@ -180,7 +180,26 @@ class RewardsCfg:
         weight=20000.0,  
         params={
             "rest_height": 0.93,       # 根据之前的计算，静止时的绝对高度
-            "dist_threshold": 0.035     # 👉 必须保持在 1 厘米内才算抓紧
+            "dist_threshold": 0.02     # 👉 必须保持在 1 厘米内才算抓紧
+        }
+    )
+
+    assemble_part2_to_part1_pos = RewTerm(
+            func=mdp.part2_assemble_pos_reward, 
+            weight=20000.0,  
+            params={
+                "std": 0.2,            # 位置逼近的宽容度 (0.05代表衰减较快，要求较精确)
+                "dist_threshold": 0.035  # 抓取约束阈值
+            }
+        )
+
+    # 2. 装配姿态对齐奖励
+    assemble_part2_to_part1_rot = RewTerm(
+        func=mdp.part2_assemble_rot_reward, 
+        weight=5000.0,   
+        params={
+            "std": 0.1,             # Z轴对齐的宽容度
+            "dist_threshold": 0.035  # 抓取约束阈值
         }
     )
     lift_bonus = RewTerm(
@@ -308,7 +327,13 @@ class Ur5eEnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
-
+    physx=sim_utils.PhysxCfg(
+            gpu_total_aggregate_pairs_capacity=16777216,
+            gpu_found_lost_aggregate_pairs_capacity=16777216,
+            gpu_max_rigid_contact_count=16777216,
+            gpu_max_rigid_patch_count=16777216,
+            gpu_found_lost_pairs_capacity=16777216,
+        )
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
         physics_material=sim_utils.RigidBodyMaterialCfg(

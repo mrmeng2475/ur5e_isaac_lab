@@ -270,3 +270,110 @@ def object_is_lifted(env: ManagerBasedRLEnv, rest_height: float, threshold: floa
 
     # 必须同时满足“抓紧”和“离地”才能拿分
     return is_lifted * is_grasped
+
+def part2_assemble_pos_reward(
+    env: ManagerBasedRLEnv, 
+    std: float, 
+    dist_threshold: float = 0.02,
+    min_height: float = 0.94,         # 基础离地高度
+    xy_active_height: float = 0.95     # 👉 新增：激活 XY 奖励的高度
+) -> torch.Tensor:
+    """
+    分阶段位置装配奖励：
+    1. Z <= 0.931 : 没举起来，0分。
+    2. 0.931 < Z <= 0.94 : 只奖励 Z 轴方向靠近 Part1 (引导继续往上举)，不考虑 XY 偏差。
+    3. Z > 0.94 : 完全激活，奖励 3D 空间逼近 (Z 轴与 XY 轴同时靠近)。
+    """
+    ee_tf: FrameTransformer = env.scene["ee_frame"]
+    parts_tf: FrameTransformer = env.scene["parts_frame"]
+    
+    # 提取坐标
+    ee_pos_w = ee_tf.data.target_pos_w[:, 0, :]
+    part1_pos_w = parts_tf.data.target_pos_w[:, 0, :]
+    part2_pos_w = parts_tf.data.target_pos_w[:, 1, :]
+    
+    # ==========================================
+    # 1. 状态掩码检测
+    # ==========================================
+    # 抓取掩码
+    grasp_dist = torch.norm(ee_pos_w - part2_pos_w, dim=-1)
+    is_grasped = (grasp_dist < dist_threshold).float()
+    
+    # 阶段高度掩码
+    part2_z = part2_pos_w[:, 2]
+    is_lifted_base = (part2_z > min_height).float()         # 是否离地
+    is_lifted_high = (part2_z > xy_active_height).float()   # 是否达到平移高度
+    
+    # ==========================================
+    # 2. 轴向距离拆解与奖励计算
+    # ==========================================
+    # 1. 计算 Z 轴高度差奖励
+    z_dist = torch.abs(part2_pos_w[:, 2] - part1_pos_w[:, 2])
+    z_reward = torch.exp(-torch.square(z_dist) / std)
+    
+    # 2. 计算 XY 水平面距离奖励
+    xy_dist = torch.norm(part2_pos_w[:, :2] - part1_pos_w[:, :2], dim=-1)
+    xy_reward = torch.exp(-torch.square(xy_dist) / std)
+    
+    # ==========================================
+    # 3. 组合逻辑 (核心)
+    # ==========================================
+    # 如果达到 0.94，乘以 xy_reward；
+    # 如果没达到 0.94，相当于不对 XY 进行惩罚（将其视为 1.0 满分），只按 Z 轴给分。
+    # 这样在 0.931 ~ 0.94 阶段，AI 只要往上举就能持续得分，不会因为 XY 没对齐而失分。
+    staged_xy_reward = torch.where(is_lifted_high > 0.5, xy_reward, torch.ones_like(xy_reward))
+    
+    pos_reward = z_reward * staged_xy_reward
+    
+    # 必须抓紧并且离地才发分数
+    return pos_reward * is_grasped * is_lifted_base
+
+
+def part2_assemble_rot_reward(
+    env: ManagerBasedRLEnv, 
+    std: float, 
+    dist_threshold: float = 0.02,
+    rot_active_height: float = 0.95  # 👉 使用 0.94 作为姿态奖励的激活阈值
+) -> torch.Tensor:
+    """
+    条件装配姿态奖励：
+    只有当机械臂将零件举起超过 0.94 时，才开始奖励 Z 轴朝向对齐。
+    """
+    ee_tf: FrameTransformer = env.scene["ee_frame"]
+    parts_tf: FrameTransformer = env.scene["parts_frame"]
+    
+    # 提取坐标与四元数
+    ee_pos_w = ee_tf.data.target_pos_w[:, 0, :]
+    part2_pos_w = parts_tf.data.target_pos_w[:, 1, :]
+    
+    part1_quat_w = parts_tf.data.target_quat_w[:, 0, :]
+    part2_quat_w = parts_tf.data.target_quat_w[:, 1, :]
+    
+    # ==========================================
+    # 1. 抓取与举起状态约束检测
+    # ==========================================
+    grasp_dist = torch.norm(ee_pos_w - part2_pos_w, dim=-1)
+    is_grasped = (grasp_dist < dist_threshold).float()
+    
+    # 👉 高度约束直接改为 0.94 (rot_active_height)
+    part2_z = part2_pos_w[:, 2]
+    is_lifted_high = (part2_z > rot_active_height).float()
+    
+    # ==========================================
+    # 2. Z轴重合奖励
+    # ==========================================
+    def get_z_axis(quat):
+        w, x, y, z = quat[:, 0], quat[:, 1], quat[:, 2], quat[:, 3]
+        zx = 2.0 * (x * z + w * y)
+        zy = 2.0 * (y * z - w * x)
+        zz = 1.0 - 2.0 * (x * x + y * y)
+        return torch.stack([zx, zy, zz], dim=-1)
+        
+    part1_z_axis = get_z_axis(part1_quat_w)
+    part2_z_axis = get_z_axis(part2_quat_w)
+    
+    z_dot = torch.sum(part1_z_axis * part2_z_axis, dim=-1)
+    rot_reward = torch.exp(-(1.0 - z_dot) / std)
+    
+    # 👉 只有举高到 0.94 且抓稳时，才发放姿态对齐分
+    return rot_reward * is_grasped * is_lifted_high
