@@ -110,10 +110,54 @@ def ee_to_part2_rot_reward(env: ManagerBasedRLEnv, std: float) -> torch.Tensor:
     return torch.exp(-torch.square(angle_diff) / std)
 
 
-def part2_continuous_lift_with_grasp_reward(env: ManagerBasedRLEnv, rest_height: float, dist_threshold: float = 0.01) -> torch.Tensor:
+# def part2_continuous_lift_with_grasp_reward(env: ManagerBasedRLEnv, rest_height: float, dist_threshold: float = 0.01) -> torch.Tensor:
+#     """
+#     条件连续性举起奖励：
+#     只有当机械臂末端与零件的距离小于 dist_threshold 时，零件离开桌面才给予举起奖励。
+#     """
+#     ee_tf: FrameTransformer = env.scene["ee_frame"]
+#     parts_tf: FrameTransformer = env.scene["parts_frame"]
+    
+#     # ==========================================
+#     # 1. 抓取距离约束检测
+#     # ==========================================
+#     ee_pos_w = ee_tf.data.target_pos_w[:, 0, :]
+#     part2_pos_w = parts_tf.data.target_pos_w[:, 1, :]
+    
+#     # 计算末端与零件抓取点的欧式距离
+#     dist = torch.norm(ee_pos_w - part2_pos_w, dim=-1)
+    
+#     # 只有距离小于阈值时，is_grasped 才为 1.0，否则为 0.0
+#     is_grasped = (dist < dist_threshold).float()
+    
+#     # ==========================================
+#     # 2. 举起高度计算
+#     # ==========================================
+#     part2_z_w = parts_tf.data.target_pos_w[:, 1, 2]
+    
+#     # 计算抬起高度（加入 1cm 的防抖动缓冲）
+#     lift_diff = part2_z_w - (rest_height + 0.0001)
+    
+#     # 限制下限为 0，没举起来就不给分
+#     actual_lift = torch.clamp(lift_diff, min=0.0)
+    
+#     # ==========================================
+#     # 3. 组合奖励 (掩码相乘)
+#     # ==========================================
+#     # 只有当 is_grasped 为 1.0 时，才会把 actual_lift 的分数发出去
+#     return actual_lift * is_grasped
+def part2_continuous_lift_with_grasp_reward(
+    env: ManagerBasedRLEnv, 
+    rest_height: float, 
+    target_height: float,  # 👉 新增：设定的最高允许高度
+    std: float = 0.01,     # 👉 新增：控制指数衰减速率的宽容度
+    dist_threshold: float = 0.02
+) -> torch.Tensor:
     """
-    条件连续性举起奖励：
-    只有当机械臂末端与零件的距离小于 dist_threshold 时，零件离开桌面才给予举起奖励。
+    条件连续性举起奖励（带高度上限与指数衰减）：
+    1. 必须保持抓紧 (距离 < dist_threshold)。
+    2. 当高度 <= target_height 时，举得越高分数越高（线性增加）。
+    3. 当高度 > target_height 时，越界越高，分数呈现指数级下降。
     """
     ee_tf: FrameTransformer = env.scene["ee_frame"]
     parts_tf: FrameTransformer = env.scene["parts_frame"]
@@ -124,28 +168,34 @@ def part2_continuous_lift_with_grasp_reward(env: ManagerBasedRLEnv, rest_height:
     ee_pos_w = ee_tf.data.target_pos_w[:, 0, :]
     part2_pos_w = parts_tf.data.target_pos_w[:, 1, :]
     
-    # 计算末端与零件抓取点的欧式距离
     dist = torch.norm(ee_pos_w - part2_pos_w, dim=-1)
-    
-    # 只有距离小于阈值时，is_grasped 才为 1.0，否则为 0.0
     is_grasped = (dist < dist_threshold).float()
     
     # ==========================================
-    # 2. 举起高度计算
+    # 2. 分段举起高度与衰减计算
     # ==========================================
-    part2_z_w = parts_tf.data.target_pos_w[:, 1, 2]
+    part2_z_w = part2_pos_w[:, 2]
     
-    # 计算抬起高度（加入 1cm 的防抖动缓冲）
-    lift_diff = part2_z_w - (rest_height + 0.0001)
+    # 计算允许的最大线性举起高度差
+    max_lift_diff = max(0.0, target_height - rest_height)
     
-    # 限制下限为 0，没举起来就不给分
-    actual_lift = torch.clamp(lift_diff, min=0.0)
+    # 阶段一：线性得分。如果举起高度超过了 target_height，得分会被 clamp 锁定在 max_lift_diff
+    linear_lift = torch.clamp(part2_z_w - (rest_height+0.0001), min=0.0, max=max_lift_diff)
+    
+    # 阶段二：超高计算。算出超过 target_height 的多余高度（未超过时为 0）
+    excess_height = torch.clamp(part2_z_w - target_height, min=0.0)
+    
+    # 根据多余高度计算指数衰减系数 (未超过时 excess_height=0，衰减系数为 1.0)
+    decay_factor = torch.exp(-torch.square(excess_height) / std)
     
     # ==========================================
     # 3. 组合奖励 (掩码相乘)
     # ==========================================
-    # 只有当 is_grasped 为 1.0 时，才会把 actual_lift 的分数发出去
-    return actual_lift * is_grasped
+    # 最终高度得分 = 线性举起分 * 指数衰减系数
+    actual_lift_score = linear_lift * decay_factor
+    
+    # 只有当 is_grasped 为 1.0 时，才会把分数发出去
+    return actual_lift_score * is_grasped
 
 def finger_part2_contact_reward(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, force_threshold: float) -> torch.Tensor:
     """
@@ -234,6 +284,7 @@ def conditional_grasp_normalized_reward(
     is_close = (dist < dist_threshold).float()
     
     # 获取指定的 8 个手指关节角度
+    robot = env.scene[asset_cfg.name]
     robot = env.scene[asset_cfg.name]
     joint_indices, _ = robot.find_joints(asset_cfg.joint_names)
     finger_pos = robot.data.joint_pos[:, joint_indices]

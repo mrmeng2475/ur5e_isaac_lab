@@ -175,14 +175,24 @@ class RewardsCfg:
         params={"std": 0.5}  # 这里的 std 控制角度宽容度
     )
 
+    # continuous_lift = RewTerm(
+    #     func=mdp.part2_continuous_lift_with_grasp_reward, # 👉 使用带抓取约束的新函数
+    #     weight=20000.0,  
+    #     params={
+    #         "rest_height": 0.93,       # 根据之前的计算，静止时的绝对高度
+    #         "dist_threshold": 0.02     # 👉 必须保持在 1 厘米内才算抓紧
+    #     }
+    # )
     continuous_lift = RewTerm(
-        func=mdp.part2_continuous_lift_with_grasp_reward, # 👉 使用带抓取约束的新函数
-        weight=20000.0,  
-        params={
-            "rest_height": 0.93,       # 根据之前的计算，静止时的绝对高度
-            "dist_threshold": 0.02     # 👉 必须保持在 1 厘米内才算抓紧
-        }
-    )
+            func=mdp.part2_continuous_lift_with_grasp_reward,
+            weight=20000.0,  
+            params={
+                "rest_height": 0.93,     
+                "target_height": 1.5,   # 👉 超过 0.95 开始指数级扣分
+                "std": 0.05,            # 👉 std 越小，超出后的惩罚越严厉，掉分越快
+                "dist_threshold": 0.035   
+            }
+        )
 
     assemble_part2_to_part1_pos = RewTerm(
             func=mdp.part2_assemble_pos_reward, 
