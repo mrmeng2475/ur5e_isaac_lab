@@ -42,7 +42,7 @@ class Ur5eSceneCfg(InteractiveSceneCfg):
             collision_props=sim_utils.CollisionPropertiesCfg(),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.20, 0.50, 0.86),rot=(0.7071, 0.7071, 0.0, 0.0)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.26, 0.51, 0.86),rot=(0.7071, 0.7071, 0.0, 0.0)),
         debug_vis=False,
     )
 

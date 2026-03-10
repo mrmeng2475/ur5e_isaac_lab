@@ -13,7 +13,7 @@ python scripts/rsl_rl/train.py --task Template-Ur5e-v0  --num_envs 16
 python scripts/rsl_rl/train.py --task Template-Ur5e-v0  --num_envs 1024 --headless --checkpoint logs/rsl_rl/cartpole_direct/2026-03-06_16-37-43/model_1450.pt
 # 
 python scripts/rsl_rl/play.py --task Template-Ur5e-v0 --num_envs 4  --checkpoint logs/rsl_rl/cartpole_direct/2026-03-08_10-47-31/model_3200.pt
-python scripts/rsl_rl/play.py --task Template-Ur5e-v0 --num_envs 4  --checkpoint /home/wuyou/work_space/ur5e_isaac_lab/final_converted_model.pt
+python scripts/rsl_rl/test.py --task Template-Ur5e-v0 --num_envs 4  --checkpoint best_model.pt
 # 有效果
 
 python scripts/rsl_rl/train.py \
