@@ -68,7 +68,7 @@ class ActionsCfg:
         joint_names=["l_f_joint.*"],  
         scale=3.0,  
         use_default_offset=True,
-        # 👇 修复：改为字典格式，".*" 匹配灵巧手的关节
+        #  修复：改为字典格式，".*" 匹配灵巧手的关节
         # clip={".*": (-1.0, 1.0)}
     )
 
@@ -119,7 +119,7 @@ class EventCfg:
         },
     )
 
-    # 👉 2. 重置 Part 1 的位置和状态
+    #  2. 重置 Part 1 的位置和状态
     reset_part_1 = EventTerm(
         func=mdp.reset_root_state_uniform,
         mode="reset",
@@ -134,7 +134,7 @@ class EventCfg:
         },
     )
 
-    # 👉 3. 重置 Part 2 的位置和状态 (我们主要抓它，加一点随机化)
+    #  3. 重置 Part 2 的位置和状态 (我们主要抓它，加一点随机化)
     reset_part_2 = EventTerm(
         func=mdp.reset_root_state_uniform,
         mode="reset",
@@ -155,20 +155,20 @@ class EventCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
     
-    # 👉 1. 独立的位置靠近奖励
+    #  1. 独立的位置靠近奖励
     reach_part_2_pos = RewTerm(
         func=mdp.ee_to_part2_pos_reward,
         weight=10.0,   # 你可以独立调整这个权重
         params={"std": 0.2}
     )
-    # 👉 1厘米高精度区域奖励
+    #  1厘米高精度区域奖励
     fine_reach_part_2_pos = RewTerm(
         func=mdp.ee_to_part2_fine_pos_reward,  # 调用刚才写的阶跃函数
         weight=50.0,   # 权重给高一点！只要待在这 1cm 的球体里，每步都拿 50 分
         params={"threshold": 0.015}  # 0.01 米 = 1 厘米
     )
 
-    # 👉 2. 独立的姿态对齐奖励
+    #  2. 独立的姿态对齐奖励
     reach_part_2_rot = RewTerm(
         func=mdp.ee_to_part2_rot_reward,
         weight=3.0,   # 你可以独立调整这个权重
@@ -176,17 +176,17 @@ class RewardsCfg:
     )
 
     continuous_lift = RewTerm(
-        func=mdp.part2_continuous_lift_with_grasp_reward, # 👉 使用带抓取约束的新函数
+        func=mdp.part2_continuous_lift_with_grasp_reward, #  使用带抓取约束的新函数
         weight=20000.0,  
         params={
             "rest_height": 0.93,       # 根据之前的计算，静止时的绝对高度
-            "dist_threshold": 0.02     # 👉 必须保持在 1 厘米内才算抓紧
+            "dist_threshold": 0.02     #  必须保持在 1 厘米内才算抓紧
         }
     )
 
     assemble_part2_to_part1_pos = RewTerm(
             func=mdp.part2_assemble_pos_reward, 
-            weight=1000.0,  
+            weight=20000.0,  
             params={
                 "std": 0.2,            # 位置逼近的宽容度 (0.05代表衰减较快，要求较精确)
                 "dist_threshold": 0.035  # 抓取约束阈值
@@ -196,7 +196,7 @@ class RewardsCfg:
     # 2. 装配姿态对齐奖励
     assemble_part2_to_part1_rot = RewTerm(
         func=mdp.part2_assemble_rot_reward, 
-        weight=500.0,   
+        weight=5000.0,   
         params={
             "std": 0.1,             # Z轴对齐的宽容度
             "dist_threshold": 0.035  # 抓取约束阈值
@@ -204,7 +204,7 @@ class RewardsCfg:
     )
     lift_bonus = RewTerm(
         func=mdp.object_is_lifted, 
-        weight=2000.0, 
+        weight=80000.0, 
         params={
             "rest_height": 0.93,   # 零件静止时的高度
             "threshold": 0.01,      # 离地 2cm 触发
@@ -213,7 +213,7 @@ class RewardsCfg:
     )
     grasp_when_close = RewTerm(
         func=mdp.conditional_grasp_normalized_reward,  
-        weight=100.0,  
+        weight=500.0,  
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=[
                 "l_f_joint_1",
@@ -233,7 +233,7 @@ class RewardsCfg:
                 1.40, 0.6,             # 中指 (2)
                 1.40, 0.6              # 无名指 (3)
             ],
-            # 👉 新增：严格对应上面 8 个关节的逼近权重
+            #  新增：严格对应上面 8 个关节的逼近权重
             "joint_weights": [
                 3.0, 1.5, 0.6, 0.1,    # 食指 (1): 根部和第二段更重要，指尖给 0.2
                 2.0, 0.8,              # 中指 (2): 根部给 1.5，末段给 0.8
@@ -282,7 +282,7 @@ class TerminationsCfg:
         }
     )
     
-    # 👉 3. 真实的撞击桌面终止 (物理接触力检测)
+    #  3. 真实的撞击桌面终止 (物理接触力检测)
     bad_collision = DoneTerm(
         func=mdp.illegal_contact, # 直接使用官方自带的碰撞检测函数
         params={
@@ -300,7 +300,7 @@ class TerminationsCfg:
     #     }
     # )
 
-# 👉 3. 机器人自碰撞终止
+#  3. 机器人自碰撞终止
     # self_collision = DoneTerm(
     #     func=mdp.illegal_contact, 
     #     params={

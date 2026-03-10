@@ -12,7 +12,7 @@ import torch
 from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import wrap_to_pi
-# 👉 补充导入坐标系传感器类型，用于类型提示
+#  补充导入坐标系传感器类型，用于类型提示
 from isaaclab.sensors import FrameTransformer
 
 if TYPE_CHECKING:
@@ -216,7 +216,7 @@ def conditional_grasp_normalized_reward(
     asset_cfg: SceneEntityCfg, 
     dist_threshold: float, 
     max_angles: list[float],
-    joint_weights: list[float]  # 👉 新增参数：各个关节的独立权重
+    joint_weights: list[float]  #  新增参数：各个关节的独立权重
 ) -> torch.Tensor:
     """
     当机械臂末端靠近零件时，鼓励灵巧手的指定关节向正方向（闭合）运动。
@@ -240,12 +240,12 @@ def conditional_grasp_normalized_reward(
     
     # 将传入的列表转换为 PyTorch 张量
     max_angles_tensor = torch.tensor(max_angles, device=robot.device, dtype=torch.float32)
-    weights_tensor = torch.tensor(joint_weights, device=robot.device, dtype=torch.float32) # 👉 转换权重列表
+    weights_tensor = torch.tensor(joint_weights, device=robot.device, dtype=torch.float32) #  转换权重列表
     
     # 核心：归一化 (当前角度 / 最大极限角度)
     normalized_finger_pos = torch.clamp(finger_pos / max_angles_tensor, min=0.0, max=1.0)
     
-    # 👉 将归一化后的值乘以对应关节的权重，再相加
+    #  将归一化后的值乘以对应关节的权重，再相加
     weighted_finger_pos = normalized_finger_pos * weights_tensor
     sum_flexion = torch.sum(weighted_finger_pos, dim=-1)
     
@@ -276,7 +276,7 @@ def part2_assemble_pos_reward(
     std: float, 
     dist_threshold: float = 0.02,
     min_height: float = 0.94,         # 基础离地高度
-    xy_active_height: float = 0.95     # 👉 新增：激活 XY 奖励的高度
+    xy_active_height: float = 0.95     #  新增：激活 XY 奖励的高度
 ) -> torch.Tensor:
     """
     分阶段位置装配奖励：
@@ -333,7 +333,7 @@ def part2_assemble_rot_reward(
     env: ManagerBasedRLEnv, 
     std: float, 
     dist_threshold: float = 0.02,
-    rot_active_height: float = 0.95  # 👉 使用 0.94 作为姿态奖励的激活阈值
+    rot_active_height: float = 0.95  #  使用 0.94 作为姿态奖励的激活阈值
 ) -> torch.Tensor:
     """
     条件装配姿态奖励：
@@ -355,7 +355,7 @@ def part2_assemble_rot_reward(
     grasp_dist = torch.norm(ee_pos_w - part2_pos_w, dim=-1)
     is_grasped = (grasp_dist < dist_threshold).float()
     
-    # 👉 高度约束直接改为 0.94 (rot_active_height)
+    #  高度约束直接改为 0.94 (rot_active_height)
     part2_z = part2_pos_w[:, 2]
     is_lifted_high = (part2_z > rot_active_height).float()
     
@@ -375,5 +375,5 @@ def part2_assemble_rot_reward(
     z_dot = torch.sum(part1_z_axis * part2_z_axis, dim=-1)
     rot_reward = torch.exp(-(1.0 - z_dot) / std)
     
-    # 👉 只有举高到 0.94 且抓稳时，才发放姿态对齐分
+    #  只有举高到 0.94 且抓稳时，才发放姿态对齐分
     return rot_reward * is_grasped * is_lifted_high
